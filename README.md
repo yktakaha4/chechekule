@@ -65,4 +65,65 @@ url: https://example.com
 | {{.requestedAt}} | Request time (RFC3339 format) |
 | {{.statusCode}} | HTTP status code |
 | {{.duration}} | Request duration |
-| {{.ymdhms}} | Current time for log filename (YYYYMMDDhhmmss format) | 
+| {{.ymdhms}} | Current time for log filename (YYYYMMDDhhmmss format) |
+
+## Development
+
+### Requirements
+
+- Go 1.22 or later
+- Make
+
+### Available Make Commands
+
+```bash
+# Install dependencies
+make install
+
+# Format code and run go vet
+make fix
+
+# Run tests
+make test
+
+# Build binary
+make build
+
+# Clean build artifacts
+make clean
+```
+
+### Development Flow
+
+1. Clone the repository
+```bash
+git clone https://github.com/yktakaha4/chechekule.git
+cd chechekule
+```
+
+2. Install dependencies
+```bash
+make install
+```
+
+3. Make your changes
+
+4. Format code and run static analysis
+```bash
+make fix
+```
+
+5. Run tests
+```bash
+make test
+```
+
+6. Build binary
+```bash
+make build
+```
+
+7. Run the built binary
+```bash
+./chechekule https://example.com
+``` 

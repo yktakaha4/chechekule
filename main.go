@@ -39,10 +39,16 @@ func main() {
 		}
 	}
 
+	if err := runCheck(config, nil); err != nil {
+		fmt.Fprintf(os.Stderr, "Error during execution: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runCheck(config *Config, done <-chan bool) error {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create cookie jar: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create cookie jar: %w", err)
 	}
 
 	client := &http.Client{
@@ -53,45 +59,49 @@ func main() {
 	}
 
 	if err := config.SetupCookies(jar); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to setup cookies: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to setup cookies: %w", err)
 	}
 
 	ticker := time.NewTicker(config.Interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		requestedAt := time.Now()
-		start := time.Now()
+	for {
+		select {
+		case <-done:
+			return nil
+		case <-ticker.C:
+			requestedAt := time.Now()
+			start := time.Now()
 
-		req, err := http.NewRequest("GET", config.URL, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create request: %v\n", err)
-			continue
-		}
+			req, err := http.NewRequest("GET", config.URL, nil)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to create request: %v\n", err)
+				continue
+			}
 
-		ctx := req.Context()
-		ctx, cancel := context.WithTimeout(ctx, config.Timeout.Connect+config.Timeout.Read)
-		req = req.WithContext(ctx)
-		defer cancel()
+			ctx := req.Context()
+			ctx, cancel := context.WithTimeout(ctx, config.Timeout.Connect+config.Timeout.Read)
+			req = req.WithContext(ctx)
+			defer cancel()
 
-		resp, err := client.Do(req)
-		duration := time.Since(start)
+			resp, err := client.Do(req)
+			duration := time.Since(start)
 
-		var statusCode int
-		if err != nil {
-			statusCode = -1
-			fmt.Printf("%s\tError: %v\t%v\n", requestedAt.Format(time.RFC3339), err, duration)
-		} else {
-			statusCode = resp.StatusCode
-			fmt.Printf("%s\t%d\t%v\n", requestedAt.Format(time.RFC3339), statusCode, duration)
-			resp.Body.Close()
-		}
+			var statusCode int
+			if err != nil {
+				statusCode = -1
+				fmt.Printf("%s\tError: %v\t%v\n", requestedAt.Format(time.RFC3339), err, duration)
+			} else {
+				statusCode = resp.StatusCode
+				fmt.Printf("%s\t%d\t%v\n", requestedAt.Format(time.RFC3339), statusCode, duration)
+				resp.Body.Close()
+			}
 
-		if config.Log != nil {
-			if err := config.WriteLog(requestedAt, statusCode, duration); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to write log: %v\n", err)
+			if config.Log != nil {
+				if err := config.WriteLog(requestedAt, statusCode, duration); err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to write log: %v\n", err)
+				}
 			}
 		}
 	}
-} 
+}
