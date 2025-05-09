@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+// バージョン情報
+var (
+	Version = "dev" // ビルド時に上書きされます
+)
+
 // エラーコードの定義
 const (
 	StatusDNSLookupFailed  = -1
@@ -29,7 +34,13 @@ var errorMessages = map[int]string{
 
 func main() {
 	configPath := flag.String("c", "", "config file path")
+	version := flag.Bool("version", false, "show version")
 	flag.Parse()
+
+	if *version {
+		fmt.Printf("chechekule version %s\n", Version)
+		os.Exit(0)
+	}
 
 	var config *Config
 	var err error
@@ -43,7 +54,7 @@ func main() {
 	} else {
 		args := flag.Args()
 		if len(args) != 1 {
-			fmt.Fprintf(os.Stderr, "Usage: %s [-c config-file] <url>\n", os.Args[0])
+			fmt.Fprintf(os.Stderr, "Usage: %s [-c config-file] [-version] <url>\n", os.Args[0])
 			os.Exit(1)
 		}
 		config = &Config{

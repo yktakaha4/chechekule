@@ -10,6 +10,7 @@ GOFMT=$(GO) fmt
 GOVET=$(GO) vet
 GOTEST=$(GO) test
 GOBUILD=$(GO) build
+VERSION=$(shell date +'v%Y%m%d%H%M%S')
 
 # Install dependencies
 install:
@@ -27,7 +28,7 @@ test:
 
 # Build binary
 build:
-	$(GOBUILD) -o $(BINARY_NAME)
+	$(GOBUILD) -ldflags "-X main.Version=$(VERSION)" -o $(BINARY_NAME)
 
 # Clean build artifacts
 clean:
