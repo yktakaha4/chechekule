@@ -224,14 +224,17 @@ func TestErrorStatus(t *testing.T) {
 func TestFollowRedirect(t *testing.T) {
 	tests := []struct {
 		name            string
-		followRedirects bool
+		followRedirects FollowRedirectsConfig
 		expectedCode    int
 		setupServers    func() ([]*httptest.Server, string)
 	}{
 		{
-			name:            "follow redirects",
-			followRedirects: true,
-			expectedCode:    http.StatusOK,
+			name: "follow redirects",
+			followRedirects: FollowRedirectsConfig{
+				Enabled:  true,
+				MaxCount: 10,
+			},
+			expectedCode: http.StatusOK,
 			setupServers: func() ([]*httptest.Server, string) {
 				targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusOK)
@@ -243,9 +246,12 @@ func TestFollowRedirect(t *testing.T) {
 			},
 		},
 		{
-			name:            "do not follow redirects",
-			followRedirects: false,
-			expectedCode:    http.StatusFound,
+			name: "do not follow redirects",
+			followRedirects: FollowRedirectsConfig{
+				Enabled:  false,
+				MaxCount: 10,
+			},
+			expectedCode: http.StatusFound,
 			setupServers: func() ([]*httptest.Server, string) {
 				targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusOK)
@@ -257,9 +263,12 @@ func TestFollowRedirect(t *testing.T) {
 			},
 		},
 		{
-			name:            "follow recursive redirects",
-			followRedirects: true,
-			expectedCode:    http.StatusOK,
+			name: "follow recursive redirects",
+			followRedirects: FollowRedirectsConfig{
+				Enabled:  true,
+				MaxCount: 10,
+			},
+			expectedCode: http.StatusOK,
 			setupServers: func() ([]*httptest.Server, string) {
 				// 3つのサーバーを作成し、循環的なリダイレクトを設定
 				servers := make([]*httptest.Server, 3)
@@ -277,12 +286,15 @@ func TestFollowRedirect(t *testing.T) {
 			},
 		},
 		{
-			name:            "too many redirects",
-			followRedirects: true,
-			expectedCode:    StatusUnknown,
+			name: "too many redirects",
+			followRedirects: FollowRedirectsConfig{
+				Enabled:  true,
+				MaxCount: 5,
+			},
+			expectedCode: StatusRedirectLoop,
 			setupServers: func() ([]*httptest.Server, string) {
-				// 11個のサーバーを作成し、循環的なリダイレクトを設定
-				servers := make([]*httptest.Server, 11)
+				// 6個のサーバーを作成し、循環的なリダイレクトを設定
+				servers := make([]*httptest.Server, 6)
 				for i := range servers {
 					i := i // ループ変数のキャプチャ
 					servers[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -324,6 +336,144 @@ func TestFollowRedirect(t *testing.T) {
 			}()
 
 			if err := runCheck(config, done); err != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestAsserts(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *Config
+		handler     http.HandlerFunc
+		expectError bool
+	}{
+		{
+			name: "status code match",
+			config: &Config{
+				Asserts: AssertsConfig{
+					StatusCode: StatusCodeAssert{
+						Values: []int{200, 201},
+					},
+				},
+			},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			},
+			expectError: false,
+		},
+		{
+			name: "status code mismatch",
+			config: &Config{
+				Asserts: AssertsConfig{
+					StatusCode: StatusCodeAssert{
+						Values: []int{200, 201},
+					},
+				},
+			},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			},
+			expectError: true,
+		},
+		{
+			name: "status code regex match",
+			config: &Config{
+				Asserts: AssertsConfig{
+					StatusCode: StatusCodeAssert{
+						Regex: "^2..$",
+					},
+				},
+			},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			},
+			expectError: false,
+		},
+		{
+			name: "status code regex mismatch",
+			config: &Config{
+				Asserts: AssertsConfig{
+					StatusCode: StatusCodeAssert{
+						Regex: "^2..$",
+					},
+				},
+			},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			},
+			expectError: true,
+		},
+		{
+			name: "body regex match",
+			config: &Config{
+				Asserts: AssertsConfig{
+					Body: BodyAssert{
+						Regex: "success",
+					},
+				},
+			},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("operation success"))
+			},
+			expectError: false,
+		},
+		{
+			name: "body regex mismatch",
+			config: &Config{
+				Asserts: AssertsConfig{
+					Body: BodyAssert{
+						Regex: "success",
+					},
+				},
+			},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("operation failed"))
+			},
+			expectError: true,
+		},
+		{
+			name: "multiple asserts",
+			config: &Config{
+				Asserts: AssertsConfig{
+					StatusCode: StatusCodeAssert{
+						Values: []int{200},
+					},
+					Body: BodyAssert{
+						Regex: "success",
+					},
+				},
+			},
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("operation success"))
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(tt.handler)
+			defer server.Close()
+
+			tt.config.URL = server.URL
+			tt.config.Interval = 100 * time.Millisecond
+			tt.config.Timeout = TimeoutConfig{
+				Connect: 1 * time.Second,
+				Read:    1 * time.Second,
+			}
+
+			done := make(chan bool)
+			go func() {
+				time.Sleep(250 * time.Millisecond)
+				done <- true
+			}()
+
+			if err := runCheck(tt.config, done); err != nil {
 				t.Errorf("Expected no error, got %v", err)
 			}
 		})

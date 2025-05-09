@@ -4,9 +4,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,6 +24,8 @@ const (
 	StatusDNSLookupFailed  = -1
 	StatusConnectionFailed = -2
 	StatusTimeout          = -3
+	StatusRedirectLoop     = -4
+	StatusAssertFailed     = -5
 	StatusUnknown          = -999
 )
 
@@ -29,6 +34,8 @@ var errorMessages = map[int]string{
 	StatusDNSLookupFailed:  "DNS_LOOKUP_FAILED",
 	StatusConnectionFailed: "CONNECTION_FAILED",
 	StatusTimeout:          "TIMEOUT",
+	StatusRedirectLoop:     "REDIRECT_LOOP_DETECTED",
+	StatusAssertFailed:     "ASSERT_FAILED",
 	StatusUnknown:          "UNKNOWN_ERROR",
 }
 
@@ -86,9 +93,50 @@ func getErrorStatus(err error) int {
 		return StatusConnectionFailed
 	case strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded"):
 		return StatusTimeout
+	case strings.Contains(errStr, "stopped after") && strings.Contains(errStr, "redirects"):
+		return StatusRedirectLoop
 	default:
 		return StatusUnknown
 	}
+}
+
+func validateResponse(config *Config, resp *http.Response, body []byte) error {
+	// ステータスコードの検証
+	if len(config.Asserts.StatusCode.Values) > 0 {
+		found := false
+		for _, code := range config.Asserts.StatusCode.Values {
+			if resp.StatusCode == code {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("status code %d not in expected values %v", resp.StatusCode, config.Asserts.StatusCode.Values)
+		}
+	}
+
+	if config.Asserts.StatusCode.Regex != "" {
+		re, err := regexp.Compile(config.Asserts.StatusCode.Regex)
+		if err != nil {
+			return fmt.Errorf("invalid status code regex: %w", err)
+		}
+		if !re.MatchString(strconv.Itoa(resp.StatusCode)) {
+			return fmt.Errorf("status code %d does not match regex %s", resp.StatusCode, config.Asserts.StatusCode.Regex)
+		}
+	}
+
+	// レスポンスボディの検証
+	if config.Asserts.Body.Regex != "" {
+		re, err := regexp.Compile(config.Asserts.Body.Regex)
+		if err != nil {
+			return fmt.Errorf("invalid body regex: %w", err)
+		}
+		if !re.Match(body) {
+			return fmt.Errorf("body does not match regex %s", config.Asserts.Body.Regex)
+		}
+	}
+
+	return nil
 }
 
 func runCheck(config *Config, done <-chan bool) error {
@@ -103,11 +151,11 @@ func runCheck(config *Config, done <-chan bool) error {
 			DisableKeepAlives: true,
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if !config.FollowRedirects {
+			if !config.FollowRedirects.Enabled {
 				return http.ErrUseLastResponse
 			}
-			if len(via) >= 10 {
-				return fmt.Errorf("stopped after 10 redirects")
+			if len(via) >= config.FollowRedirects.MaxCount {
+				return fmt.Errorf("stopped after %d redirects", config.FollowRedirects.MaxCount)
 			}
 			return nil
 		},
@@ -143,13 +191,31 @@ func runCheck(config *Config, done <-chan bool) error {
 			duration := time.Since(start)
 
 			var statusCode int
+			var body []byte
 			if err != nil {
 				statusCode = getErrorStatus(err)
 				fmt.Printf("%s\t%s\t%v\n", requestedAt.Format(time.RFC3339), errorMessages[statusCode], duration)
 			} else {
-				statusCode = resp.StatusCode
-				fmt.Printf("%s\t%d\t%v\n", requestedAt.Format(time.RFC3339), statusCode, duration)
+				body, err = io.ReadAll(resp.Body)
 				resp.Body.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to read response body: %v\n", err)
+					continue
+				}
+
+				if err := validateResponse(config, resp, body); err != nil {
+					statusCode = StatusAssertFailed
+					fmt.Printf("%s\t%s\t%v\n", requestedAt.Format(time.RFC3339), errorMessages[statusCode], duration)
+					fmt.Fprintf(os.Stderr, "Assert failed: %v\n", err)
+					fmt.Fprintf(os.Stderr, "Response Headers:\n")
+					for k, v := range resp.Header {
+						fmt.Fprintf(os.Stderr, "  %s: %v\n", k, v)
+					}
+					fmt.Fprintf(os.Stderr, "Response Body:\n%s\n", string(body))
+				} else {
+					statusCode = resp.StatusCode
+					fmt.Printf("%s\t%d\t%v\n", requestedAt.Format(time.RFC3339), statusCode, duration)
+				}
 			}
 
 			if config.Log != nil {

@@ -20,6 +20,25 @@ type TimeoutConfig struct {
 	Read    time.Duration `yaml:"read"`
 }
 
+type FollowRedirectsConfig struct {
+	Enabled  bool `yaml:"enabled"`
+	MaxCount int  `yaml:"max_count"`
+}
+
+type StatusCodeAssert struct {
+	Values []int  `yaml:"values"`
+	Regex  string `yaml:"regex"`
+}
+
+type BodyAssert struct {
+	Regex string `yaml:"regex"`
+}
+
+type AssertsConfig struct {
+	StatusCode StatusCodeAssert `yaml:"status_code"`
+	Body       BodyAssert       `yaml:"body"`
+}
+
 type CookieConfig struct {
 	Key   string `yaml:"key"`
 	Value string `yaml:"value"`
@@ -31,13 +50,14 @@ type LogConfig struct {
 }
 
 type Config struct {
-	URL             string         `yaml:"url"`
-	Interval        time.Duration  `yaml:"interval"`
-	Timeout         TimeoutConfig  `yaml:"timeout"`
-	FollowRedirects bool           `yaml:"follow_redirects"`
-	Cookies         []CookieConfig `yaml:"cookies"`
-	CookieFile      string         `yaml:"cookie_file"`
-	Log             *LogConfig     `yaml:"log"`
+	URL             string                `yaml:"url"`
+	Interval        time.Duration         `yaml:"interval"`
+	Timeout         TimeoutConfig         `yaml:"timeout"`
+	FollowRedirects FollowRedirectsConfig `yaml:"follow_redirects"`
+	Asserts         AssertsConfig         `yaml:"asserts"`
+	Cookies         []CookieConfig        `yaml:"cookies"`
+	CookieFile      string                `yaml:"cookie_file"`
+	Log             *LogConfig            `yaml:"log"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -51,6 +71,15 @@ func LoadConfig(path string) (*Config, error) {
 		Timeout: TimeoutConfig{
 			Connect: 3 * time.Second,
 			Read:    7 * time.Second,
+		},
+		FollowRedirects: FollowRedirectsConfig{
+			Enabled:  true,
+			MaxCount: 10,
+		},
+		Asserts: AssertsConfig{
+			StatusCode: StatusCodeAssert{
+				Values: []int{200},
+			},
 		},
 	}
 

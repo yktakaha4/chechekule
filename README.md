@@ -30,7 +30,9 @@ interval: 1s
 timeout:
   connect: 3s
   read: 7s
-follow_redirects: true
+follow_redirects:
+  enabled: true
+  max_count: 10
 cookies:
   - key: _session
     value: abcde
@@ -54,7 +56,8 @@ url: https://example.com
 | interval | Request interval | 1s |
 | timeout.connect | Connection timeout | 3s |
 | timeout.read | Read timeout | 7s |
-| follow_redirects | Whether to follow HTTP redirects | true |
+| follow_redirects.enabled | Whether to follow HTTP redirects | true |
+| follow_redirects.max_count | Maximum number of redirects to follow | 10 |
 | cookies | Cookie settings | None |
 | cookie_file | Path to curl format cookie file | None |
 | log.path | Log file path (template available) | None |
@@ -68,6 +71,17 @@ url: https://example.com
 | {{.statusCode}} | HTTP status code |
 | {{.duration}} | Request duration |
 | {{.ymdhms}} | Current time for log filename (YYYYMMDDhhmmss format) |
+
+### Status Codes
+
+| Code | Description |
+|------|-------------|
+| 200-299 | HTTP success status codes |
+| -1 | DNS lookup failed |
+| -2 | Connection failed |
+| -3 | Timeout |
+| -4 | Redirect loop detected |
+| -999 | Unknown error |
 
 ## Development
 
