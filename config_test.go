@@ -195,7 +195,7 @@ func TestWriteLog(t *testing.T) {
 			name: "simple format",
 			config: &LogConfig{
 				Path:   "test.log",
-				Format: "{{.StatusCode}}",
+				Format: "{{.statusCode}}",
 			},
 			status:   200,
 			duration: 100 * time.Millisecond,
@@ -206,7 +206,7 @@ func TestWriteLog(t *testing.T) {
 			name: "full format",
 			config: &LogConfig{
 				Path:   "test.log",
-				Format: "{{.RequestedAt}}\t{{.StatusCode}}\t{{.Duration}}",
+				Format: "{{.requestedAt}}\t{{.statusCode}}\t{{.duration}}",
 			},
 			status:   404,
 			duration: 150 * time.Millisecond,

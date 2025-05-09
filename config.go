@@ -130,54 +130,46 @@ func (c *Config) WriteLog(requestedAt time.Time, statusCode int, duration time.D
 		return nil
 	}
 
-	data := struct {
-		RequestedAt string
-		StatusCode  int
-		Duration    time.Duration
-	}{
-		RequestedAt: requestedAt.Format(time.RFC3339),
-		StatusCode:  statusCode,
-		Duration:    duration,
-	}
-
 	// Parse log path template
 	pathTmpl, err := template.New("path").Parse(c.Log.Path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse path template: %w", err)
 	}
 
 	var pathBuf bytes.Buffer
 	if err := pathTmpl.Execute(&pathBuf, map[string]string{
 		"ymdhms": time.Now().Format("20060102150405"),
 	}); err != nil {
-		return err
+		return fmt.Errorf("failed to execute path template: %w", err)
 	}
 
 	// Parse log format template
-	formatTmpl, err := template.New("format").Parse(c.Log.Format)
+	formatTmpl, err := template.New("format").Option("missingkey=error").Parse(c.Log.Format)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse format template: %w", err)
 	}
 
+	// 実際のデータでテンプレートを実行
 	var formatBuf bytes.Buffer
-	if err := formatTmpl.Execute(&formatBuf, map[string]interface{}{
-		"requestedAt": data.RequestedAt,
-		"statusCode":  data.StatusCode,
-		"duration":    data.Duration,
-	}); err != nil {
-		return err
+	data := map[string]interface{}{
+		"requestedAt": requestedAt.Format(time.RFC3339),
+		"statusCode":  statusCode,
+		"duration":    duration,
+	}
+	if err := formatTmpl.Execute(&formatBuf, data); err != nil {
+		return fmt.Errorf("failed to execute format template: %w", err)
 	}
 
 	// Open log file in append mode
 	f, err := os.OpenFile(pathBuf.String(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open log file: %w", err)
 	}
 	defer f.Close()
 
 	// Write log entry
 	if _, err := fmt.Fprintln(f, formatBuf.String()); err != nil {
-		return err
+		return fmt.Errorf("failed to write log: %w", err)
 	}
 
 	return nil

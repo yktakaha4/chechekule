@@ -119,7 +119,7 @@ func TestLogging(t *testing.T) {
 		},
 		Log: &LogConfig{
 			Path:   logPath,
-			Format: "{{.StatusCode}}",
+			Format: "{{.statusCode}}",
 		},
 	}
 
