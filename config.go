@@ -58,6 +58,7 @@ type Config struct {
 	Cookies         []CookieConfig        `yaml:"cookies"`
 	CookieFile      string                `yaml:"cookie_file"`
 	Log             *LogConfig            `yaml:"log"`
+	startTime       time.Time             // 開始時間を保持するフィールドを追加
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -81,6 +82,7 @@ func LoadConfig(path string) (*Config, error) {
 				Values: []int{200},
 			},
 		},
+		startTime: time.Now(), // 開始時間を設定
 	}
 
 	if err := yaml.Unmarshal(data, config); err != nil {
@@ -168,7 +170,7 @@ func (c *Config) WriteLog(requestedAt time.Time, statusCode int, duration time.D
 
 	var pathBuf bytes.Buffer
 	if err := pathTmpl.Execute(&pathBuf, map[string]string{
-		"ymdhms": time.Now().Format("20060102150405"),
+		"ymdhms": c.startTime.Format("20060102150405"), // 開始時間を使用
 	}); err != nil {
 		return fmt.Errorf("failed to execute path template: %w", err)
 	}
@@ -190,6 +192,9 @@ func (c *Config) WriteLog(requestedAt time.Time, statusCode int, duration time.D
 		return fmt.Errorf("failed to execute format template: %w", err)
 	}
 
+	// タブ文字のエスケープシーケンスを実際のタブ文字に変換
+	logEntry := strings.ReplaceAll(formatBuf.String(), "\\t", "\t")
+
 	// Open log file in append mode
 	f, err := os.OpenFile(pathBuf.String(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -198,7 +203,7 @@ func (c *Config) WriteLog(requestedAt time.Time, statusCode int, duration time.D
 	defer f.Close()
 
 	// Write log entry
-	if _, err := fmt.Fprintln(f, formatBuf.String()); err != nil {
+	if _, err := fmt.Fprintln(f, logEntry); err != nil {
 		return fmt.Errorf("failed to write log: %w", err)
 	}
 
