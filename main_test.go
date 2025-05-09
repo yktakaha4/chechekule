@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -174,5 +175,48 @@ timeout:
 
 	if config.Timeout.Read != 7*time.Second {
 		t.Errorf("Expected read timeout 7s, got %v", config.Timeout.Read)
+	}
+}
+
+func TestErrorStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected int
+	}{
+		{
+			name:     "DNS lookup failed",
+			err:      fmt.Errorf("dial tcp: lookup example.com: no such host"),
+			expected: StatusDNSLookupFailed,
+		},
+		{
+			name:     "Connection refused",
+			err:      fmt.Errorf("dial tcp 127.0.0.1:8080: connect: connection refused"),
+			expected: StatusConnectionFailed,
+		},
+		{
+			name:     "Timeout",
+			err:      fmt.Errorf("context deadline exceeded"),
+			expected: StatusTimeout,
+		},
+		{
+			name:     "Unknown error",
+			err:      fmt.Errorf("some other error"),
+			expected: StatusUnknown,
+		},
+		{
+			name:     "No error",
+			err:      nil,
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getErrorStatus(tt.err)
+			if got != tt.expected {
+				t.Errorf("getErrorStatus() = %v, want %v", got, tt.expected)
+			}
+		})
 	}
 }

@@ -7,8 +7,25 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+	"strings"
 	"time"
 )
+
+// エラーコードの定義
+const (
+	StatusDNSLookupFailed  = -1
+	StatusConnectionFailed = -2
+	StatusTimeout          = -3
+	StatusUnknown          = -999
+)
+
+// エラーメッセージの定義
+var errorMessages = map[int]string{
+	StatusDNSLookupFailed:  "DNS_LOOKUP_FAILED",
+	StatusConnectionFailed: "CONNECTION_FAILED",
+	StatusTimeout:          "TIMEOUT",
+	StatusUnknown:          "UNKNOWN_ERROR",
+}
 
 func main() {
 	configPath := flag.String("c", "", "config file path")
@@ -42,6 +59,24 @@ func main() {
 	if err := runCheck(config, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "Error during execution: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func getErrorStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	errStr := err.Error()
+	switch {
+	case strings.Contains(errStr, "no such host"):
+		return StatusDNSLookupFailed
+	case strings.Contains(errStr, "connection refused"):
+		return StatusConnectionFailed
+	case strings.Contains(errStr, "timeout") || strings.Contains(errStr, "deadline exceeded"):
+		return StatusTimeout
+	default:
+		return StatusUnknown
 	}
 }
 
@@ -89,8 +124,8 @@ func runCheck(config *Config, done <-chan bool) error {
 
 			var statusCode int
 			if err != nil {
-				statusCode = -1
-				fmt.Printf("%s\tError: %v\t%v\n", requestedAt.Format(time.RFC3339), err, duration)
+				statusCode = getErrorStatus(err)
+				fmt.Printf("%s\t%s\t%v\n", requestedAt.Format(time.RFC3339), errorMessages[statusCode], duration)
 			} else {
 				statusCode = resp.StatusCode
 				fmt.Printf("%s\t%d\t%v\n", requestedAt.Format(time.RFC3339), statusCode, duration)
