@@ -194,7 +194,7 @@ func runCheck(config *Config, done <-chan bool) error {
 			var body []byte
 			if err != nil {
 				statusCode = getErrorStatus(err)
-				fmt.Printf("%s\t%s\t%v\n", requestedAt.Format(time.RFC3339), errorMessages[statusCode], duration)
+				fmt.Printf("%s\t%s\t%v\n", requestedAt.Format("2006-01-02T15:04:05.000Z07:00"), errorMessages[statusCode], duration)
 			} else {
 				body, err = io.ReadAll(resp.Body)
 				resp.Body.Close()
@@ -205,7 +205,7 @@ func runCheck(config *Config, done <-chan bool) error {
 
 				if err := validateResponse(config, resp, body); err != nil {
 					statusCode = StatusAssertFailed
-					fmt.Printf("%s\t%s\t%v\n", requestedAt.Format(time.RFC3339), errorMessages[statusCode], duration)
+					fmt.Printf("%s\t%s\t%v\n", requestedAt.Format("2006-01-02T15:04:05.000Z07:00"), errorMessages[statusCode], duration)
 					fmt.Fprintf(os.Stderr, "Assert failed: %v\n", err)
 					fmt.Fprintf(os.Stderr, "Response Headers:\n")
 					for k, v := range resp.Header {
@@ -214,7 +214,7 @@ func runCheck(config *Config, done <-chan bool) error {
 					fmt.Fprintf(os.Stderr, "Response Body:\n%s\n", string(body))
 				} else {
 					statusCode = resp.StatusCode
-					fmt.Printf("%s\t%d\t%v\n", requestedAt.Format(time.RFC3339), statusCode, duration)
+					fmt.Printf("%s\t%d\t%v\n", requestedAt.Format("2006-01-02T15:04:05.000Z07:00"), statusCode, duration)
 				}
 			}
 

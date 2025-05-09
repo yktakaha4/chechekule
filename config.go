@@ -182,7 +182,7 @@ func (c *Config) WriteLog(requestedAt time.Time, statusCode int, duration time.D
 	// 実際のデータでテンプレートを実行
 	var formatBuf bytes.Buffer
 	data := map[string]interface{}{
-		"requestedAt": requestedAt.Format(time.RFC3339),
+		"requestedAt": requestedAt.Format("2006-01-02T15:04:05.000Z07:00"),
 		"statusCode":  statusCode,
 		"duration":    duration,
 	}
