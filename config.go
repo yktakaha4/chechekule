@@ -160,7 +160,11 @@ func (c *Config) WriteLog(requestedAt time.Time, statusCode int, duration time.D
 	}
 
 	var formatBuf bytes.Buffer
-	if err := formatTmpl.Execute(&formatBuf, data); err != nil {
+	if err := formatTmpl.Execute(&formatBuf, map[string]interface{}{
+		"requestedAt": data.RequestedAt,
+		"statusCode":  data.StatusCode,
+		"duration":    data.Duration,
+	}); err != nil {
 		return err
 	}
 
