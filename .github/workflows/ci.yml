@@ -91,33 +91,22 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
-
     - name: Get version
       id: get_version
       run: echo "VERSION=v$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        name: Release ${{ steps.get_version.outputs.VERSION }}
-        tag_name: ${{ steps.get_version.outputs.VERSION }}
-        draft: false
-        prerelease: false
 
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
         path: artifacts
 
-    - name: Upload Release Assets
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          artifacts/chechekule-ubuntu-latest/chechekule
-          artifacts/chechekule-macos-latest/chechekule
+    - name: Create Release
+      run: |
+        gh release create ${{ steps.get_version.outputs.VERSION }} \
+          --title "Release ${{ steps.get_version.outputs.VERSION }}" \
+          --notes "Release ${{ steps.get_version.outputs.VERSION }}" \
+          artifacts/chechekule-ubuntu-latest/chechekule \
+          artifacts/chechekule-macos-latest/chechekule \
           artifacts/chechekule-windows-latest/chechekule
-        tag_name: ${{ steps.get_version.outputs.VERSION }} 
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
