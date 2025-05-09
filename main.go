@@ -102,6 +102,15 @@ func runCheck(config *Config, done <-chan bool) error {
 		Transport: &http.Transport{
 			DisableKeepAlives: true,
 		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if !config.FollowRedirects {
+				return http.ErrUseLastResponse
+			}
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return nil
+		},
 	}
 
 	if err := config.SetupCookies(jar); err != nil {

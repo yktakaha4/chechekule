@@ -220,3 +220,112 @@ func TestErrorStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestFollowRedirect(t *testing.T) {
+	tests := []struct {
+		name            string
+		followRedirects bool
+		expectedCode    int
+		setupServers    func() ([]*httptest.Server, string)
+	}{
+		{
+			name:            "follow redirects",
+			followRedirects: true,
+			expectedCode:    http.StatusOK,
+			setupServers: func() ([]*httptest.Server, string) {
+				targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.Redirect(w, r, targetServer.URL, http.StatusFound)
+				}))
+				return []*httptest.Server{targetServer, redirectServer}, redirectServer.URL
+			},
+		},
+		{
+			name:            "do not follow redirects",
+			followRedirects: false,
+			expectedCode:    http.StatusFound,
+			setupServers: func() ([]*httptest.Server, string) {
+				targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.Redirect(w, r, targetServer.URL, http.StatusFound)
+				}))
+				return []*httptest.Server{targetServer, redirectServer}, redirectServer.URL
+			},
+		},
+		{
+			name:            "follow recursive redirects",
+			followRedirects: true,
+			expectedCode:    http.StatusOK,
+			setupServers: func() ([]*httptest.Server, string) {
+				// 3つのサーバーを作成し、循環的なリダイレクトを設定
+				servers := make([]*httptest.Server, 3)
+				for i := range servers {
+					i := i // ループ変数のキャプチャ
+					servers[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if i == 2 {
+							w.WriteHeader(http.StatusOK)
+							return
+						}
+						http.Redirect(w, r, servers[i+1].URL, http.StatusFound)
+					}))
+				}
+				return servers, servers[0].URL
+			},
+		},
+		{
+			name:            "too many redirects",
+			followRedirects: true,
+			expectedCode:    StatusUnknown,
+			setupServers: func() ([]*httptest.Server, string) {
+				// 11個のサーバーを作成し、循環的なリダイレクトを設定
+				servers := make([]*httptest.Server, 11)
+				for i := range servers {
+					i := i // ループ変数のキャプチャ
+					servers[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if i == len(servers)-1 {
+							w.WriteHeader(http.StatusOK)
+							return
+						}
+						http.Redirect(w, r, servers[i+1].URL, http.StatusFound)
+					}))
+				}
+				return servers, servers[0].URL
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			servers, startURL := tt.setupServers()
+			defer func() {
+				for _, server := range servers {
+					server.Close()
+				}
+			}()
+
+			config := &Config{
+				URL:             startURL,
+				Interval:        100 * time.Millisecond,
+				FollowRedirects: tt.followRedirects,
+				Timeout: TimeoutConfig{
+					Connect: 1 * time.Second,
+					Read:    1 * time.Second,
+				},
+			}
+
+			done := make(chan bool)
+			go func() {
+				time.Sleep(250 * time.Millisecond)
+				done <- true
+			}()
+
+			if err := runCheck(config, done); err != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
+		})
+	}
+}

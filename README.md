@@ -30,6 +30,7 @@ interval: 1s
 timeout:
   connect: 3s
   read: 7s
+follow_redirects: true
 cookies:
   - key: _session
     value: abcde
@@ -53,6 +54,7 @@ url: https://example.com
 | interval | Request interval | 1s |
 | timeout.connect | Connection timeout | 3s |
 | timeout.read | Read timeout | 7s |
+| follow_redirects | Whether to follow HTTP redirects | true |
 | cookies | Cookie settings | None |
 | cookie_file | Path to curl format cookie file | None |
 | log.path | Log file path (template available) | None |

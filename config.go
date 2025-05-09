@@ -31,12 +31,13 @@ type LogConfig struct {
 }
 
 type Config struct {
-	URL        string         `yaml:"url"`
-	Interval   time.Duration  `yaml:"interval"`
-	Timeout    TimeoutConfig  `yaml:"timeout"`
-	Cookies    []CookieConfig `yaml:"cookies"`
-	CookieFile string         `yaml:"cookie_file"`
-	Log        *LogConfig     `yaml:"log"`
+	URL             string         `yaml:"url"`
+	Interval        time.Duration  `yaml:"interval"`
+	Timeout         TimeoutConfig  `yaml:"timeout"`
+	FollowRedirects bool           `yaml:"follow_redirects"`
+	Cookies         []CookieConfig `yaml:"cookies"`
+	CookieFile      string         `yaml:"cookie_file"`
+	Log             *LogConfig     `yaml:"log"`
 }
 
 func LoadConfig(path string) (*Config, error) {
