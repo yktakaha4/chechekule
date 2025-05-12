@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -140,6 +141,14 @@ func validateResponse(config *Config, resp *http.Response, body []byte) error {
 }
 
 func runCheck(config *Config, done <-chan bool) error {
+	// Execute hook if configured
+	if config.Hooks.OnStart != "" {
+		cmd := exec.Command(config.Hooks.OnStart)
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to execute hook: %v\n", err)
+		}
+	}
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return fmt.Errorf("failed to create cookie jar: %w", err)

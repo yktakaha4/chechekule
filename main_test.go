@@ -270,10 +270,10 @@ func TestFollowRedirect(t *testing.T) {
 			},
 			expectedCode: http.StatusOK,
 			setupServers: func() ([]*httptest.Server, string) {
-				// 3つのサーバーを作成し、循環的なリダイレクトを設定
+				// Create 3 servers with circular redirects
 				servers := make([]*httptest.Server, 3)
 				for i := range servers {
-					i := i // ループ変数のキャプチャ
+					i := i // Capture loop variable
 					servers[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						if i == 2 {
 							w.WriteHeader(http.StatusOK)
@@ -293,10 +293,10 @@ func TestFollowRedirect(t *testing.T) {
 			},
 			expectedCode: StatusRedirectLoop,
 			setupServers: func() ([]*httptest.Server, string) {
-				// 6個のサーバーを作成し、循環的なリダイレクトを設定
+				// Create 6 servers with circular redirects
 				servers := make([]*httptest.Server, 6)
 				for i := range servers {
-					i := i // ループ変数のキャプチャ
+					i := i // Capture loop variable
 					servers[i] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						if i == len(servers)-1 {
 							w.WriteHeader(http.StatusOK)
@@ -477,5 +477,54 @@ func TestAsserts(t *testing.T) {
 				t.Errorf("Expected no error, got %v", err)
 			}
 		})
+	}
+}
+
+func TestHooks(t *testing.T) {
+	// Create a temporary script file for testing
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test_hook.sh")
+	scriptContent := `#!/bin/sh
+echo "hook executed" > "` + filepath.Join(tmpDir, "hook_output.txt") + `"
+`
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("Failed to write test script: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	config := &Config{
+		URL:      server.URL,
+		Interval: 100 * time.Millisecond,
+		Timeout: TimeoutConfig{
+			Connect: 1 * time.Second,
+			Read:    1 * time.Second,
+		},
+		Hooks: HooksConfig{
+			OnStart: scriptPath,
+		},
+	}
+
+	done := make(chan bool)
+	go func() {
+		time.Sleep(250 * time.Millisecond)
+		done <- true
+	}()
+
+	if err := runCheck(config, done); err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	// Verify that the hook was executed
+	outputPath := filepath.Join(tmpDir, "hook_output.txt")
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Errorf("Failed to read hook output: %v", err)
+	}
+	if string(content) != "hook executed\n" {
+		t.Errorf("Expected hook output 'hook executed', got %s", string(content))
 	}
 }

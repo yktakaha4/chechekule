@@ -62,6 +62,7 @@ url: https://example.com
 | cookie_file | Path to curl format cookie file | None |
 | log.path | Log file path (template available) | None |
 | log.format | Log format (template available) | None |
+| hooks.on_start | Path to executable file to run before starting checks | None |
 
 ### Log Template Variables
 

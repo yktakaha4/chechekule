@@ -49,6 +49,10 @@ type LogConfig struct {
 	Format string `yaml:"format"`
 }
 
+type HooksConfig struct {
+	OnStart string `yaml:"on_start"`
+}
+
 type Config struct {
 	URL             string                `yaml:"url"`
 	Interval        time.Duration         `yaml:"interval"`
@@ -58,7 +62,8 @@ type Config struct {
 	Cookies         []CookieConfig        `yaml:"cookies"`
 	CookieFile      string                `yaml:"cookie_file"`
 	Log             *LogConfig            `yaml:"log"`
-	startTime       time.Time             // 開始時間を保持するフィールドを追加
+	Hooks           HooksConfig           `yaml:"hooks"`
+	startTime       time.Time             // Field to store start time
 }
 
 func LoadConfig(path string) (*Config, error) {
